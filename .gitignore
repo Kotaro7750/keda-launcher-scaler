@@ -1,0 +1,10 @@
+.gocache/
+
+# Go test binary coverage output
+*.out
+
+# Go workspace binaries
+/bin/
+
+# macOS metadata
+.DS_Store
