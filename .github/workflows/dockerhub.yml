@@ -4,9 +4,6 @@ on:
   push:
     tags:
       - "v*.*.*"
-      - "!v*.*.*-*"
-      - "!v*.*.*+*"
-      - "!v*.*.*.*"
 
 permissions:
   contents: read
