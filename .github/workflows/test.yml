@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - "**"
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/test.yml"
 
 permissions:
   contents: read
