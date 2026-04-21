@@ -1,0 +1,102 @@
+openapi: 3.0.3
+info:
+  title: keda-launcher-scaler HTTP receiver API
+  version: 0.1.0
+paths:
+  /requests:
+    post:
+      operationId: postRequests
+      summary: Accept a time-bounded launch request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LaunchRequest'
+      responses:
+        '202':
+          description: The launch request was accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedRequest'
+        '400':
+          description: The request body does not match the HTTP API schema or domain rules.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '408':
+          description: The client request was canceled before the request could be accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    LaunchRequest:
+      type: object
+      required:
+        - requestId
+        - scaledObject
+      properties:
+        requestId:
+          type: string
+          minLength: 1
+        scaledObject:
+          $ref: '#/components/schemas/ScaledObject'
+        startAt:
+          type: string
+          format: date-time
+        duration:
+          type: string
+          minLength: 1
+        endAt:
+          type: string
+          format: date-time
+      oneOf:
+        - required:
+            - duration
+        - required:
+            - endAt
+      additionalProperties: false
+    ScaledObject:
+      type: object
+      required:
+        - namespace
+        - name
+      properties:
+        namespace:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    AcceptedRequest:
+      type: object
+      required:
+        - requestId
+        - scaledObject
+        - effectiveStart
+        - effectiveEnd
+      properties:
+        requestId:
+          type: string
+        scaledObject:
+          $ref: '#/components/schemas/ScaledObject'
+        effectiveStart:
+          type: string
+          format: date-time
+        effectiveEnd:
+          type: string
+          format: date-time
+      additionalProperties: false
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+      additionalProperties: false

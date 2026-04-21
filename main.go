@@ -13,6 +13,7 @@ import (
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/config"
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/observability"
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/receiver"
+	httpreceiver "github.com/Kotaro7750/keda-launcher-scaler/internal/receiver/http"
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/scaler"
 	"go.opentelemetry.io/otel"
 )
@@ -58,7 +59,7 @@ func runScaler(ctx context.Context, logger *slog.Logger, cfg config.Config) erro
 	requestCh := make(chan arbitrator.RequestWindow, cfg.RequestBufferSize)
 
 	// Construct receivers group
-	httpReceiver := receiver.NewReceiver("http", receiver.NewHTTPReceiverIF(cfg.HTTPListenAddress, logger), requestCh)
+	httpReceiver := receiver.NewReceiver("http", httpreceiver.NewReceiverIF(cfg.HTTPListenAddress, logger), requestCh)
 	receiverGroup := graceful.NewGracefulDaemonGroup("receivers", httpReceiver).WithLogger(logger)
 
 	// Construct arbitrator router

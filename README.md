@@ -6,6 +6,8 @@ time-bounded launch requests received over HTTP.
 The service accepts request windows through `POST /requests`, routes them by
 ScaledObject, and exposes the KEDA external scaler gRPC API.
 
+The HTTP API contract is defined by `internal/receiver/http/openapi.yaml`.
+
 ## Usage
 
 Run the scaler locally:
