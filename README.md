@@ -19,6 +19,16 @@ go run ./cmd/keda-launcher-scaler
 By default, the HTTP receiver listens on `:8080` and the gRPC external scaler
 listens on `:9090`.
 
+Run the client locally:
+
+```sh
+SCALED_OBJECT_NAMESPACE=default \
+SCALED_OBJECT_NAME=worker \
+REQUEST_INTERVAL=30s \
+REQUEST_DURATION=1m \
+go run ./cmd/keda-launcher-client
+```
+
 Example request:
 
 ```sh
@@ -64,6 +74,21 @@ Configuration is loaded from environment variables.
 | `SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown timeout. |
 | `LOG_LEVEL` | `info` | Log level. |
 | `REQUEST_BUFFER_SIZE` | `128` | Buffered request queue size. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | OTLP trace exporter endpoint. |
+| `OTEL_EXPORTER_OTLP_INSECURE` | `true` | Whether to use an insecure OTLP connection. |
+
+Client configuration:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `SERVICE_NAME` | `keda-launcher-client` | OpenTelemetry service name. |
+| `RECEIVER_URL` | `http://localhost:8080` | Scaler HTTP receiver base URL. |
+| `SCALED_OBJECT_NAMESPACE` | required | Target ScaledObject namespace. |
+| `SCALED_OBJECT_NAME` | required | Target ScaledObject name. |
+| `REQUEST_INTERVAL` | required | Interval for sending launch requests. |
+| `REQUEST_DURATION` | required | Duration sent in each launch request. Must be greater than `REQUEST_INTERVAL`. |
+| `SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown timeout. |
+| `LOG_LEVEL` | `info` | Log level. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | OTLP trace exporter endpoint. |
 | `OTEL_EXPORTER_OTLP_INSECURE` | `true` | Whether to use an insecure OTLP connection. |
 

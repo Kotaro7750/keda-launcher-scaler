@@ -1,0 +1,6 @@
+package: httpreceiver
+generate:
+  models: true
+  client: true
+  embedded-spec: true
+output: openapi.gen.go
