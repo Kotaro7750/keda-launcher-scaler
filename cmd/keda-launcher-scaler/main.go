@@ -9,12 +9,12 @@ import (
 	"syscall"
 
 	"github.com/Kotaro7750/graceful"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/config"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/observability"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/receiver"
-	httpreceiver "github.com/Kotaro7750/keda-launcher-scaler/internal/receiver/http"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/scaler"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/common/observability"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/config"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/receiver"
+	httpreceiver "github.com/Kotaro7750/keda-launcher-scaler/internal/server/receiver/http"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/scaler"
 	"go.opentelemetry.io/otel"
 )
 
@@ -39,7 +39,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	tracerProvider, shutdownTracer, err := observability.NewTracerProvider(ctx, cfg)
+	tracerProvider, shutdownTracer, err := observability.NewTracerProvider(ctx, observability.TracerConfig{
+		ServiceName:  cfg.ServiceName,
+		OTLPEndpoint: cfg.OTLPEndpoint,
+		OTLPInsecure: cfg.OTLPInsecure,
+	})
 	if err != nil {
 		return fmt.Errorf("create tracer provider: %w", err)
 	}

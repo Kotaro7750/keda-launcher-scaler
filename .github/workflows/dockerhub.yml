@@ -11,6 +11,13 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: keda-launcher-scaler
+            dockerfile: Dockerfile.server
+          - image: keda-launcher-client
+            dockerfile: Dockerfile.client
 
     steps:
       - name: Checkout
@@ -23,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/keda-launcher-scaler
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           tags: |
             type=ref,event=tag
 
@@ -37,9 +44,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./Dockerfile
+          file: ./${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

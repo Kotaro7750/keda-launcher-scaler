@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/types"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 
 	"github.com/google/uuid"
 )

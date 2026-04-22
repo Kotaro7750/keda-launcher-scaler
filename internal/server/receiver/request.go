@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/types"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 )
 
 // RequestInput is the transport-neutral launch request shape shared by receivers.

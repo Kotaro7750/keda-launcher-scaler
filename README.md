@@ -6,14 +6,14 @@ time-bounded launch requests received over HTTP.
 The service accepts request windows through `POST /requests`, routes them by
 ScaledObject, and exposes the KEDA external scaler gRPC API.
 
-The HTTP API contract is defined by `internal/receiver/http/openapi.yaml`.
+The HTTP API contract is defined by `internal/common/contracts/receivers/http/openapi.yaml`.
 
 ## Usage
 
 Run the scaler locally:
 
 ```sh
-go run .
+go run ./cmd/keda-launcher-scaler
 ```
 
 By default, the HTTP receiver listens on `:8080` and the gRPC external scaler
@@ -39,7 +39,8 @@ curl -X POST http://localhost:8080/requests \
 Build the image:
 
 ```sh
-docker build -t keda-launcher-scaler .
+docker build -f Dockerfile.server -t keda-launcher-scaler .
+docker build -f Dockerfile.client -t keda-launcher-client .
 ```
 
 Run the container:

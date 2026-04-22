@@ -3,8 +3,8 @@ package scaler
 import (
 	"context"
 
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/types"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 	"github.com/kedacore/keda/v2/pkg/scalers/externalscaler"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

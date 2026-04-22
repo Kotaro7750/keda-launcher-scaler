@@ -7,11 +7,15 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/config"
 )
 
-func NewTracerProvider(ctx context.Context, cfg config.Config) (*sdktrace.TracerProvider, func(context.Context) error, error) {
+type TracerConfig struct {
+	ServiceName  string
+	OTLPEndpoint string
+	OTLPInsecure bool
+}
+
+func NewTracerProvider(ctx context.Context, cfg TracerConfig) (*sdktrace.TracerProvider, func(context.Context) error, error) {
 	res, err := resource.Merge(
 		resource.Default(),
 		resource.NewSchemaless(

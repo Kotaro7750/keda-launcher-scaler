@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/Kotaro7750/graceful"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
 )
 
 type ScalerServer struct {

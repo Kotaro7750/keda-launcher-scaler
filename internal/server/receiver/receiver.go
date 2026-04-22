@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Kotaro7750/graceful"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
 )
 
 // ReceiverIF abstracts a launch request source that feeds normalized requests into the arbitrator.

@@ -7,9 +7,9 @@ import (
 	stdhttp "net/http"
 	"time"
 
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/receiver"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/types"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/receiver"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/oapi-codegen/echo-middleware"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"

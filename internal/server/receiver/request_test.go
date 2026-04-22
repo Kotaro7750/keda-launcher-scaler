@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/arbitrator"
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/types"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 )
 
 func TestNormalizeRequest(t *testing.T) {

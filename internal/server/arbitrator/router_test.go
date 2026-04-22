@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kotaro7750/keda-launcher-scaler/internal/types"
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 )
 
 func TestArbitratorRouter_RoutesRequestWithoutSubscriber(t *testing.T) {
