@@ -20,6 +20,9 @@ func TestLoad(t *testing.T) {
 	if got.ReceiverURL != "http://localhost:8080" {
 		t.Fatalf("ReceiverURL = %q", got.ReceiverURL)
 	}
+	if got.RequestID != "" {
+		t.Fatalf("RequestID = %q, want empty", got.RequestID)
+	}
 	if got.ScaledObjectNamespace != "default" || got.ScaledObjectName != "worker" {
 		t.Fatalf("ScaledObject = %s/%s", got.ScaledObjectNamespace, got.ScaledObjectName)
 	}
@@ -68,6 +71,20 @@ func TestLoad_RejectsClientRuntimePolicyViolations(t *testing.T) {
 				t.Fatalf("Load error = %q, want to contain %q", err.Error(), tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestLoad_TrimsRequestID(t *testing.T) {
+	setValidRuntimeSettings(t)
+	t.Setenv("REQUEST_ID", "  pod-123-litellm  ")
+
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got.RequestID != "pod-123-litellm" {
+		t.Fatalf("RequestID = %q", got.RequestID)
 	}
 }
 

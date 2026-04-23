@@ -83,6 +83,7 @@ Client configuration:
 | --- | --- | --- |
 | `SERVICE_NAME` | `keda-launcher-client` | OpenTelemetry service name. |
 | `RECEIVER_URL` | `http://localhost:8080` | Scaler HTTP receiver base URL. |
+| `REQUEST_ID` | derived from scaled object | Optional request ID override. |
 | `SCALED_OBJECT_NAMESPACE` | required | Target ScaledObject namespace. |
 | `SCALED_OBJECT_NAME` | required | Target ScaledObject name. |
 | `REQUEST_INTERVAL` | required | Interval for sending launch requests. |

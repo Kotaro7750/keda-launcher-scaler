@@ -22,6 +22,7 @@ const (
 type Config struct {
 	ServiceName string `mapstructure:"SERVICE_NAME"`
 	ReceiverURL string `mapstructure:"RECEIVER_URL"`
+	RequestID   string `mapstructure:"REQUEST_ID"`
 
 	ScaledObjectNamespace string        `mapstructure:"SCALED_OBJECT_NAMESPACE"`
 	ScaledObjectName      string        `mapstructure:"SCALED_OBJECT_NAME"`
@@ -40,6 +41,7 @@ func Load() (Config, error) {
 	for key, value := range map[string]any{
 		"SERVICE_NAME":                defaultServiceName,
 		"RECEIVER_URL":                defaultReceiverURL,
+		"REQUEST_ID":                  "",
 		"SCALED_OBJECT_NAMESPACE":     "",
 		"SCALED_OBJECT_NAME":          "",
 		"REQUEST_INTERVAL":            "",
@@ -64,6 +66,7 @@ func Load() (Config, error) {
 
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.ReceiverURL = strings.TrimSpace(cfg.ReceiverURL)
+	cfg.RequestID = strings.TrimSpace(cfg.RequestID)
 	cfg.ScaledObjectNamespace = strings.TrimSpace(cfg.ScaledObjectNamespace)
 	cfg.ScaledObjectName = strings.TrimSpace(cfg.ScaledObjectName)
 	cfg.LogLevel = strings.ToLower(strings.TrimSpace(cfg.LogLevel))

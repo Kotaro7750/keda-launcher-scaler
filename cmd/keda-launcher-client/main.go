@@ -96,8 +96,13 @@ func runClient(ctx context.Context, logger *slog.Logger, cfg config.Config) erro
 
 func launchRequest(cfg config.Config) httpreceiver.LaunchRequest {
 	duration := cfg.RequestDuration.String()
+	requestID := cfg.RequestID
+	if requestID == "" {
+		requestID = fmt.Sprintf("keda-launcher-client:%s/%s", cfg.ScaledObjectNamespace, cfg.ScaledObjectName)
+	}
+
 	return httpreceiver.LaunchRequest{
-		RequestId: fmt.Sprintf("keda-launcher-client:%s/%s", cfg.ScaledObjectNamespace, cfg.ScaledObjectName),
+		RequestId: requestID,
 		ScaledObject: httpreceiver.ScaledObject{
 			Namespace: cfg.ScaledObjectNamespace,
 			Name:      cfg.ScaledObjectName,
