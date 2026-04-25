@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	stdhttp "net/http"
+	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/client/config"
-	httpreceiver "github.com/Kotaro7750/keda-launcher-scaler/internal/client/receiver/http"
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/common/observability"
+	"github.com/Kotaro7750/keda-launcher-scaler/pkg/client"
+	httpclient "github.com/Kotaro7750/keda-launcher-scaler/pkg/client/http"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 )
@@ -60,10 +60,10 @@ func run() error {
 }
 
 func runClient(ctx context.Context, logger *slog.Logger, cfg config.Config) error {
-	httpClient := &stdhttp.Client{
-		Transport: otelhttp.NewTransport(stdhttp.DefaultTransport),
+	httpClient := &http.Client{
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
-	receiver, err := httpreceiver.NewClientWithResponses(cfg.ReceiverURL, httpreceiver.WithHTTPClient(httpClient))
+	receiver, err := httpclient.New(cfg.ReceiverURL, httpclient.WithHTTPClient(httpClient))
 	if err != nil {
 		return fmt.Errorf("create receiver client: %w", err)
 	}
@@ -94,29 +94,28 @@ func runClient(ctx context.Context, logger *slog.Logger, cfg config.Config) erro
 	}
 }
 
-func launchRequest(cfg config.Config) httpreceiver.LaunchRequest {
-	duration := cfg.RequestDuration.String()
+func launchRequest(cfg config.Config) client.LaunchRequest {
 	requestID := cfg.RequestID
 	if requestID == "" {
 		requestID = fmt.Sprintf("keda-launcher-client:%s/%s", cfg.ScaledObjectNamespace, cfg.ScaledObjectName)
 	}
 
-	return httpreceiver.LaunchRequest{
-		RequestId: requestID,
-		ScaledObject: httpreceiver.ScaledObject{
+	return client.LaunchRequest{
+		RequestID: requestID,
+		ScaledObject: client.ScaledObject{
 			Namespace: cfg.ScaledObjectNamespace,
 			Name:      cfg.ScaledObjectName,
 		},
-		Duration: &duration,
+		Duration: cfg.RequestDuration,
 	}
 }
 
-func sendAndLog(ctx context.Context, logger *slog.Logger, receiver httpreceiver.ClientWithResponsesInterface, request httpreceiver.LaunchRequest) {
-	if err := sendLaunchRequest(ctx, receiver, request); err != nil {
+func sendAndLog(ctx context.Context, logger *slog.Logger, receiver *httpclient.HTTPClient, request client.LaunchRequest) {
+	if _, err := receiver.Launch(ctx, request); err != nil {
 		logger.Error(
 			"Launch request failed",
 			"error", err,
-			"requestId", request.RequestId,
+			"requestId", request.RequestID,
 			"scaledObject.namespace", request.ScaledObject.Namespace,
 			"scaledObject.name", request.ScaledObject.Name,
 		)
@@ -125,26 +124,9 @@ func sendAndLog(ctx context.Context, logger *slog.Logger, receiver httpreceiver.
 
 	logger.Info(
 		"Launch request accepted",
-		"requestId", request.RequestId,
+		"requestId", request.RequestID,
 		"scaledObject.namespace", request.ScaledObject.Namespace,
 		"scaledObject.name", request.ScaledObject.Name,
-		"duration", *request.Duration,
+		"duration", request.Duration.String(),
 	)
-}
-
-func sendLaunchRequest(ctx context.Context, receiver httpreceiver.ClientWithResponsesInterface, request httpreceiver.LaunchRequest) error {
-	response, err := receiver.PostRequestsWithResponse(ctx, request)
-	if err != nil {
-		return fmt.Errorf("post request: %w", err)
-	}
-
-	if response.StatusCode() == stdhttp.StatusAccepted {
-		return nil
-	}
-
-	body := strings.TrimSpace(string(response.Body))
-	if body == "" {
-		return fmt.Errorf("unexpected response status: %s", response.Status())
-	}
-	return fmt.Errorf("unexpected response status: %s: %s", response.Status(), body)
 }

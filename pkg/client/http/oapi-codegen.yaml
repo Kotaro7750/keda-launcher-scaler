@@ -1,4 +1,4 @@
-package: httpreceiver
+package: httpclient
 generate:
   models: true
   client: true

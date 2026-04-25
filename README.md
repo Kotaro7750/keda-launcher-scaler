@@ -7,6 +7,7 @@ The service accepts request windows through `POST /requests`, routes them by
 ScaledObject, and exposes the KEDA external scaler gRPC API.
 
 The HTTP API contract is defined by `internal/common/contracts/receivers/http/openapi.yaml`.
+Transport-agnostic client domain types are published from `pkg/client`, and the HTTP client implementation plus generated OpenAPI types are published from `pkg/client/http`.
 
 ## Usage
 
@@ -19,7 +20,7 @@ go run ./cmd/keda-launcher-scaler
 By default, the HTTP receiver listens on `:8080` and the gRPC external scaler
 listens on `:9090`.
 
-Run the client locally:
+Run the sample client locally:
 
 ```sh
 SCALED_OBJECT_NAMESPACE=default \
@@ -28,6 +29,12 @@ REQUEST_INTERVAL=30s \
 REQUEST_DURATION=1m \
 go run ./cmd/keda-launcher-client
 ```
+
+`cmd/keda-launcher-client` is a sample binary that uses the HTTP client implementation in `pkg/client/http`.
+
+For library use, `pkg/client` defines the transport-agnostic domain types and
+client interface, while `pkg/client/http` provides the HTTP implementation.
+Detailed API usage is documented in the Go source comments.
 
 Example request:
 
