@@ -29,6 +29,14 @@ type AcceptedRequest struct {
 	ScaledObject   ScaledObject `json:"scaledObject"`
 }
 
+// DeletedRequest defines model for DeletedRequest.
+type DeletedRequest struct {
+	EffectiveEnd   time.Time    `json:"effectiveEnd"`
+	EffectiveStart time.Time    `json:"effectiveStart"`
+	RequestId      string       `json:"requestId"`
+	ScaledObject   ScaledObject `json:"scaledObject"`
+}
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	Message string `json:"message"`
@@ -54,6 +62,11 @@ type LaunchRequest1 = interface{}
 type ScaledObject struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+}
+
+// ScaledObjectList defines model for ScaledObjectList.
+type ScaledObjectList struct {
+	ScaledObjects []ScaledObject `json:"scaledObjects"`
 }
 
 // PostRequestsJSONRequestBody defines body for PostRequests for application/json ContentType.
@@ -284,6 +297,12 @@ type ClientInterface interface {
 	PostRequestsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostRequests(ctx context.Context, body PostRequestsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListScaledObjects request
+	ListScaledObjects(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteScaledObjectRequest request
+	DeleteScaledObjectRequest(ctx context.Context, namespace string, name string, requestId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) PostRequestsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -300,6 +319,30 @@ func (c *Client) PostRequestsWithBody(ctx context.Context, contentType string, b
 
 func (c *Client) PostRequests(ctx context.Context, body PostRequestsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostRequestsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListScaledObjects(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListScaledObjectsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteScaledObjectRequest(ctx context.Context, namespace string, name string, requestId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteScaledObjectRequestRequest(c.Server, namespace, name, requestId)
 	if err != nil {
 		return nil, err
 	}
@@ -346,6 +389,81 @@ func NewPostRequestsRequestWithBody(server string, contentType string, body io.R
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListScaledObjectsRequest generates requests for ListScaledObjects
+func NewListScaledObjectsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/scaledobjects")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteScaledObjectRequestRequest generates requests for DeleteScaledObjectRequest
+func NewDeleteScaledObjectRequestRequest(server string, namespace string, name string, requestId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "namespace", namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "requestId", requestId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/scaledobjects/%s/%s/requests/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -397,6 +515,12 @@ type ClientWithResponsesInterface interface {
 	PostRequestsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostRequestsResponse, error)
 
 	PostRequestsWithResponse(ctx context.Context, body PostRequestsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostRequestsResponse, error)
+
+	// ListScaledObjectsWithResponse request
+	ListScaledObjectsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListScaledObjectsResponse, error)
+
+	// DeleteScaledObjectRequestWithResponse request
+	DeleteScaledObjectRequestWithResponse(ctx context.Context, namespace string, name string, requestId string, reqEditors ...RequestEditorFn) (*DeleteScaledObjectRequestResponse, error)
 }
 
 type PostRequestsResponse struct {
@@ -404,6 +528,7 @@ type PostRequestsResponse struct {
 	HTTPResponse *http.Response
 	JSON202      *AcceptedRequest
 	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
 	JSON408      *ErrorResponse
 }
 
@@ -417,6 +542,51 @@ func (r PostRequestsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostRequestsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListScaledObjectsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScaledObjectList
+}
+
+// Status returns HTTPResponse.Status
+func (r ListScaledObjectsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListScaledObjectsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteScaledObjectRequestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeletedRequest
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteScaledObjectRequestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteScaledObjectRequestResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -438,6 +608,24 @@ func (c *ClientWithResponses) PostRequestsWithResponse(ctx context.Context, body
 		return nil, err
 	}
 	return ParsePostRequestsResponse(rsp)
+}
+
+// ListScaledObjectsWithResponse request returning *ListScaledObjectsResponse
+func (c *ClientWithResponses) ListScaledObjectsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListScaledObjectsResponse, error) {
+	rsp, err := c.ListScaledObjects(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListScaledObjectsResponse(rsp)
+}
+
+// DeleteScaledObjectRequestWithResponse request returning *DeleteScaledObjectRequestResponse
+func (c *ClientWithResponses) DeleteScaledObjectRequestWithResponse(ctx context.Context, namespace string, name string, requestId string, reqEditors ...RequestEditorFn) (*DeleteScaledObjectRequestResponse, error) {
+	rsp, err := c.DeleteScaledObjectRequest(ctx, namespace, name, requestId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteScaledObjectRequestResponse(rsp)
 }
 
 // ParsePostRequestsResponse parses an HTTP response from a PostRequestsWithResponse call
@@ -468,6 +656,13 @@ func ParsePostRequestsResponse(rsp *http.Response) (*PostRequestsResponse, error
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 408:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -480,19 +675,83 @@ func ParsePostRequestsResponse(rsp *http.Response) (*PostRequestsResponse, error
 	return response, nil
 }
 
+// ParseListScaledObjectsResponse parses an HTTP response from a ListScaledObjectsWithResponse call
+func ParseListScaledObjectsResponse(rsp *http.Response) (*ListScaledObjectsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListScaledObjectsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScaledObjectList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteScaledObjectRequestResponse parses an HTTP response from a DeleteScaledObjectRequestWithResponse call
+func ParseDeleteScaledObjectRequestResponse(rsp *http.Response) (*DeleteScaledObjectRequestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteScaledObjectRequestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeletedRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"AAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

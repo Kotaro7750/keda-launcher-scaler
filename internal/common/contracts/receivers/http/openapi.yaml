@@ -26,8 +26,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: The target ScaledObject is not known to this receiver.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '408':
           description: The client request was canceled before the request could be accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /scaledobjects:
+    get:
+      operationId: listScaledObjects
+      summary: List ScaledObjects known to this receiver.
+      responses:
+        '200':
+          description: ScaledObjects currently available for request operations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScaledObjectList'
+  /scaledobjects/{namespace}/{name}/requests/{requestId}:
+    delete:
+      operationId: deleteScaledObjectRequest
+      summary: Delete a request window for a known ScaledObject.
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: The request window was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedRequest'
+        '404':
+          description: The target ScaledObject or request ID is not known to this receiver.
           content:
             application/json:
               schema:
@@ -72,6 +125,35 @@ components:
         name:
           type: string
           minLength: 1
+      additionalProperties: false
+    ScaledObjectList:
+      type: object
+      required:
+        - scaledObjects
+      properties:
+        scaledObjects:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScaledObject'
+      additionalProperties: false
+    DeletedRequest:
+      type: object
+      required:
+        - requestId
+        - scaledObject
+        - effectiveStart
+        - effectiveEnd
+      properties:
+        requestId:
+          type: string
+        scaledObject:
+          $ref: '#/components/schemas/ScaledObject'
+        effectiveStart:
+          type: string
+          format: date-time
+        effectiveEnd:
+          type: string
+          format: date-time
       additionalProperties: false
     AcceptedRequest:
       type: object

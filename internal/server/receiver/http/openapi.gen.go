@@ -30,6 +30,14 @@ type AcceptedRequest struct {
 	ScaledObject   ScaledObject `json:"scaledObject"`
 }
 
+// DeletedRequest defines model for DeletedRequest.
+type DeletedRequest struct {
+	EffectiveEnd   time.Time    `json:"effectiveEnd"`
+	EffectiveStart time.Time    `json:"effectiveStart"`
+	RequestId      string       `json:"requestId"`
+	ScaledObject   ScaledObject `json:"scaledObject"`
+}
+
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	Message string `json:"message"`
@@ -55,6 +63,11 @@ type LaunchRequest1 = interface{}
 type ScaledObject struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+}
+
+// ScaledObjectList defines model for ScaledObjectList.
+type ScaledObjectList struct {
+	ScaledObjects []ScaledObject `json:"scaledObjects"`
 }
 
 // PostRequestsJSONRequestBody defines body for PostRequests for application/json ContentType.
@@ -213,6 +226,12 @@ type ServerInterface interface {
 	// Accept a time-bounded launch request.
 	// (POST /requests)
 	PostRequests(ctx echo.Context) error
+	// List ScaledObjects known to this receiver.
+	// (GET /scaledobjects)
+	ListScaledObjects(ctx echo.Context) error
+	// Delete a request window for a known ScaledObject.
+	// (DELETE /scaledobjects/{namespace}/{name}/requests/{requestId})
+	DeleteScaledObjectRequest(ctx echo.Context, namespace string, name string, requestId string) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -226,6 +245,47 @@ func (w *ServerInterfaceWrapper) PostRequests(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.PostRequests(ctx)
+	return err
+}
+
+// ListScaledObjects converts echo context to params.
+func (w *ServerInterfaceWrapper) ListScaledObjects(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ListScaledObjects(ctx)
+	return err
+}
+
+// DeleteScaledObjectRequest converts echo context to params.
+func (w *ServerInterfaceWrapper) DeleteScaledObjectRequest(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "namespace" -------------
+	var namespace string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "namespace", ctx.Param("namespace"), &namespace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter namespace: %s", err))
+	}
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", ctx.Param("name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter name: %s", err))
+	}
+
+	// ------------- Path parameter "requestId" -------------
+	var requestId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "requestId", ctx.Param("requestId"), &requestId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter requestId: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeleteScaledObjectRequest(ctx, namespace, name, requestId)
 	return err
 }
 
@@ -258,6 +318,8 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	}
 
 	router.POST(baseURL+"/requests", wrapper.PostRequests)
+	router.GET(baseURL+"/scaledobjects", wrapper.ListScaledObjects)
+	router.DELETE(baseURL+"/scaledobjects/:namespace/:name/requests/:requestId", wrapper.DeleteScaledObjectRequest)
 
 }
 
@@ -287,6 +349,15 @@ func (response PostRequests400JSONResponse) VisitPostRequestsResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type PostRequests404JSONResponse ErrorResponse
+
+func (response PostRequests404JSONResponse) VisitPostRequestsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type PostRequests408JSONResponse ErrorResponse
 
 func (response PostRequests408JSONResponse) VisitPostRequestsResponse(w http.ResponseWriter) error {
@@ -296,11 +367,61 @@ func (response PostRequests408JSONResponse) VisitPostRequestsResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListScaledObjectsRequestObject struct {
+}
+
+type ListScaledObjectsResponseObject interface {
+	VisitListScaledObjectsResponse(w http.ResponseWriter) error
+}
+
+type ListScaledObjects200JSONResponse ScaledObjectList
+
+func (response ListScaledObjects200JSONResponse) VisitListScaledObjectsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteScaledObjectRequestRequestObject struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	RequestId string `json:"requestId"`
+}
+
+type DeleteScaledObjectRequestResponseObject interface {
+	VisitDeleteScaledObjectRequestResponse(w http.ResponseWriter) error
+}
+
+type DeleteScaledObjectRequest200JSONResponse DeletedRequest
+
+func (response DeleteScaledObjectRequest200JSONResponse) VisitDeleteScaledObjectRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteScaledObjectRequest404JSONResponse ErrorResponse
+
+func (response DeleteScaledObjectRequest404JSONResponse) VisitDeleteScaledObjectRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Accept a time-bounded launch request.
 	// (POST /requests)
 	PostRequests(ctx context.Context, request PostRequestsRequestObject) (PostRequestsResponseObject, error)
+	// List ScaledObjects known to this receiver.
+	// (GET /scaledobjects)
+	ListScaledObjects(ctx context.Context, request ListScaledObjectsRequestObject) (ListScaledObjectsResponseObject, error)
+	// Delete a request window for a known ScaledObject.
+	// (DELETE /scaledobjects/{namespace}/{name}/requests/{requestId})
+	DeleteScaledObjectRequest(ctx context.Context, request DeleteScaledObjectRequestRequestObject) (DeleteScaledObjectRequestResponseObject, error)
 }
 
 type StrictHandlerFunc = strictecho.StrictEchoHandlerFunc
@@ -344,19 +465,74 @@ func (sh *strictHandler) PostRequests(ctx echo.Context) error {
 	return nil
 }
 
+// ListScaledObjects operation middleware
+func (sh *strictHandler) ListScaledObjects(ctx echo.Context) error {
+	var request ListScaledObjectsRequestObject
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ListScaledObjects(ctx.Request().Context(), request.(ListScaledObjectsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListScaledObjects")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(ListScaledObjectsResponseObject); ok {
+		return validResponse.VisitListScaledObjectsResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// DeleteScaledObjectRequest operation middleware
+func (sh *strictHandler) DeleteScaledObjectRequest(ctx echo.Context, namespace string, name string, requestId string) error {
+	var request DeleteScaledObjectRequestRequestObject
+
+	request.Namespace = namespace
+	request.Name = name
+	request.RequestId = requestId
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteScaledObjectRequest(ctx.Request().Context(), request.(DeleteScaledObjectRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteScaledObjectRequest")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(DeleteScaledObjectRequestResponseObject); ok {
+		return validResponse.VisitDeleteScaledObjectRequestResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"AAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

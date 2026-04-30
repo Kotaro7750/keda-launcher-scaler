@@ -2,8 +2,10 @@ package arbitrator
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"reflect"
 	"testing"
 	"time"
 
@@ -28,6 +30,14 @@ func TestArbitratorRouter_RoutesRequestWithoutSubscriber(t *testing.T) {
 	}()
 
 	key := types.ScaledObjectKey{Namespace: "default", Name: "worker"}
+	updates, cancelSubscription := router.Subscribe(key)
+	select {
+	case <-updates:
+	case <-time.After(time.Second):
+		t.Fatal("expected subscription to receive initial state")
+	}
+	cancelSubscription()
+
 	now := time.Now()
 	requestCh <- RequestWindow{
 		RequestID:    "request-1",
@@ -69,6 +79,14 @@ func TestArbitratorRouterSubscribe_ReceivesCurrentStateAfterRequest(t *testing.T
 	}()
 
 	key := types.ScaledObjectKey{Namespace: "default", Name: "worker"}
+	updates, cancelSubscription := router.Subscribe(key)
+	select {
+	case <-updates:
+	case <-time.After(time.Second):
+		t.Fatal("expected subscription to receive initial state")
+	}
+	cancelSubscription()
+
 	now := time.Now()
 	requestCh <- RequestWindow{
 		RequestID:    "request-1",
@@ -78,7 +96,7 @@ func TestArbitratorRouterSubscribe_ReceivesCurrentStateAfterRequest(t *testing.T
 	}
 	waitForRouterActive(t, router, key)
 
-	updates, cancelSubscription := router.Subscribe(key)
+	updates, cancelSubscription = router.Subscribe(key)
 	defer cancelSubscription()
 
 	select {
@@ -130,6 +148,151 @@ func TestArbitratorRouterSubscribe_ReusesArbitrator(t *testing.T) {
 	if len(router.arbitrators) != 1 {
 		t.Fatalf("arbitrator count = %d, want %d", len(router.arbitrators), 1)
 	}
+}
+
+func TestArbitratorRouterListScaledObjects_ReadOnlySnapshot(t *testing.T) {
+	router := NewArbitratorRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), make(chan RequestWindow))
+
+	if got := router.ListScaledObjects(); len(got) != 0 {
+		t.Fatalf("ListScaledObjects() = %v, want empty", got)
+	}
+
+	router.mu.RLock()
+	if len(router.arbitrators) != 0 {
+		t.Fatalf("arbitrator count before lookup = %d, want %d", len(router.arbitrators), 0)
+	}
+	router.mu.RUnlock()
+
+	key := types.ScaledObjectKey{Namespace: "default", Name: "worker"}
+	if router.HasScaledObject(key) {
+		t.Fatal("HasScaledObject returned true for unknown key")
+	}
+
+	router.mu.RLock()
+	if len(router.arbitrators) != 0 {
+		t.Fatalf("arbitrator count after HasScaledObject = %d, want %d", len(router.arbitrators), 0)
+	}
+	router.mu.RUnlock()
+
+	updates, cancel := router.Subscribe(key)
+	defer cancel()
+	select {
+	case <-updates:
+	case <-time.After(time.Second):
+		t.Fatal("expected subscription to receive initial state")
+	}
+
+	if !router.HasScaledObject(key) {
+		t.Fatal("HasScaledObject returned false for known key")
+	}
+
+	got := router.ListScaledObjects()
+	want := []types.ScaledObjectKey{key}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ListScaledObjects() = %v, want %v", got, want)
+	}
+
+	router.mu.RLock()
+	if len(router.arbitrators) != 1 {
+		t.Fatalf("arbitrator count after ListScaledObjects = %d, want %d", len(router.arbitrators), 1)
+	}
+	router.mu.RUnlock()
+}
+
+func TestArbitratorRouterDeleteRequest_RequiresKnownScaledObject(t *testing.T) {
+	requestCh := make(chan RequestWindow, 1)
+	router := NewArbitratorRouter(slog.New(slog.NewTextHandler(io.Discard, nil)), requestCh)
+
+	unknownKey := types.ScaledObjectKey{Namespace: "default", Name: "missing"}
+	if _, err := router.DeleteRequest(unknownKey, "request-0"); err != ErrScaledObjectNotFound {
+		t.Fatalf("DeleteRequest() error = %v, want %v", err, ErrScaledObjectNotFound)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	doneCh := make(chan error, 1)
+	go func() {
+		doneCh <- router.Run(ctx)
+	}()
+	waitForRouterRunning(t, router)
+	defer func() {
+		cancel()
+		<-doneCh
+	}()
+
+	key := types.ScaledObjectKey{Namespace: "default", Name: "worker"}
+	updates, cancelSubscription := router.Subscribe(key)
+	defer cancelSubscription()
+
+	select {
+	case active, ok := <-updates:
+		if !ok {
+			t.Fatal("expected subscription channel to be open")
+		}
+		if active {
+			t.Fatal("expected newly created ScaledObject to start inactive")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected subscription to receive initial state")
+	}
+
+	now := time.Now()
+	req := RequestWindow{
+		RequestID:    "request-1",
+		ScaledObject: key,
+		StartAt:      now.Add(-time.Minute),
+		EndAt:        now.Add(time.Minute),
+	}
+
+	requestCh <- req
+	waitForRouterActive(t, router, key)
+
+	select {
+	case active, ok := <-updates:
+		if !ok {
+			t.Fatal("expected subscription channel to stay open after activation")
+		}
+		if !active {
+			t.Fatal("expected subscriber to receive active state before delete")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected subscriber to receive active state before delete")
+	}
+
+	deleted, err := router.DeleteRequest(key, req.RequestID)
+	if err != nil {
+		t.Fatalf("DeleteRequest() error = %v", err)
+	}
+	if deleted != req {
+		t.Fatalf("DeleteRequest() = %+v, want %+v", deleted, req)
+	}
+
+	select {
+	case active, ok := <-updates:
+		if !ok {
+			t.Fatal("expected subscription channel to stay open after delete")
+		}
+		if active {
+			t.Fatal("expected subscriber to receive inactive state after delete")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected subscriber to receive inactive state after delete")
+	}
+
+	if _, err := router.DeleteRequest(key, req.RequestID); !errors.Is(err, ErrRequestWindowNotFound) {
+		t.Fatalf("repeat DeleteRequest() error = %v, want %v", err, ErrRequestWindowNotFound)
+	}
+
+	if _, err := router.DeleteRequest(unknownKey, req.RequestID); !errors.Is(err, ErrScaledObjectNotFound) {
+		t.Fatalf("unknown key DeleteRequest() error = %v, want %v", err, ErrScaledObjectNotFound)
+	}
+
+	router.mu.RLock()
+	if len(router.arbitrators) != 1 {
+		t.Fatalf("arbitrator count = %d, want %d", len(router.arbitrators), 1)
+	}
+	router.mu.RUnlock()
 }
 
 func waitForRouterRunning(t *testing.T, router *ArbitratorRouter) {

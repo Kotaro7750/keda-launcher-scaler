@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	stdhttp "net/http"
+	"sort"
 	"time"
 
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
@@ -17,15 +18,17 @@ import (
 
 // ReceiverIF accepts launch requests over HTTP and forwards normalized windows downstream.
 type ReceiverIF struct {
-	logger  *slog.Logger
-	address string
-	server  *stdhttp.Server
+	logger         *slog.Logger
+	address        string
+	requestManager requestManager
+	server         *stdhttp.Server
 }
 
-func NewReceiverIF(address string, logger *slog.Logger) *ReceiverIF {
+func NewReceiverIF(address string, logger *slog.Logger, requestManager requestManager) *ReceiverIF {
 	return &ReceiverIF{
-		logger:  logger,
-		address: address,
+		logger:         logger,
+		address:        address,
+		requestManager: requestManager,
 		server: &stdhttp.Server{
 			Addr:              address,
 			ReadHeaderTimeout: 5 * time.Second,
@@ -45,7 +48,8 @@ func (r *ReceiverIF) Receive(ctx context.Context, receivedRequestCh chan<- arbit
 	swagger.Servers = nil
 	e.Use(echomiddleware.OapiRequestValidator(swagger))
 	RegisterHandlers(e, NewStrictHandler(&httpReceiverServer{
-		out: receivedRequestCh,
+		out:            receivedRequestCh,
+		requestManager: r.requestManager,
 	}, nil))
 
 	r.server.Handler = otelhttp.NewHandler(e, "receiver.http")
@@ -71,8 +75,15 @@ func (r *ReceiverIF) Shutdown(ctx context.Context) error {
 	return r.server.Shutdown(ctx)
 }
 
+type requestManager interface {
+	HasScaledObject(types.ScaledObjectKey) bool
+	ListScaledObjects() []types.ScaledObjectKey
+	DeleteRequest(types.ScaledObjectKey, arbitrator.RequestId) (arbitrator.RequestWindow, error)
+}
+
 type httpReceiverServer struct {
-	out chan<- arbitrator.RequestWindow
+	out            chan<- arbitrator.RequestWindow
+	requestManager requestManager
 }
 
 func (s *httpReceiverServer) PostRequests(ctx context.Context, request PostRequestsRequestObject) (PostRequestsResponseObject, error) {
@@ -84,6 +95,14 @@ func (s *httpReceiverServer) PostRequests(ctx context.Context, request PostReque
 	normalized, err := receiver.NormalizeRequest(input, time.Now().UTC())
 	if err != nil {
 		return nil, echo.NewHTTPError(stdhttp.StatusBadRequest, err.Error())
+	}
+
+	if s.requestManager == nil {
+		return nil, echo.NewHTTPError(stdhttp.StatusInternalServerError, "request manager is not configured")
+	}
+
+	if !s.requestManager.HasScaledObject(normalized.ScaledObject) {
+		return nil, echo.NewHTTPError(stdhttp.StatusNotFound, "target ScaledObject is not known to this receiver")
 	}
 
 	select {
@@ -100,6 +119,62 @@ func (s *httpReceiverServer) PostRequests(ctx context.Context, request PostReque
 		},
 		EffectiveStart: normalized.StartAt,
 		EffectiveEnd:   normalized.EndAt,
+	}, nil
+}
+
+func (s *httpReceiverServer) ListScaledObjects(ctx context.Context, request ListScaledObjectsRequestObject) (ListScaledObjectsResponseObject, error) {
+	scaledObjects := make([]ScaledObject, 0)
+	if s.requestManager != nil {
+		keys := s.requestManager.ListScaledObjects()
+		scaledObjects = make([]ScaledObject, 0, len(keys))
+		for _, key := range keys {
+			scaledObjects = append(scaledObjects, ScaledObject{
+				Namespace: key.Namespace,
+				Name:      key.Name,
+			})
+		}
+		sort.Slice(scaledObjects, func(i, j int) bool {
+			if scaledObjects[i].Namespace != scaledObjects[j].Namespace {
+				return scaledObjects[i].Namespace < scaledObjects[j].Namespace
+			}
+			return scaledObjects[i].Name < scaledObjects[j].Name
+		})
+	}
+
+	return ListScaledObjects200JSONResponse{
+		ScaledObjects: scaledObjects,
+	}, nil
+}
+
+func (s *httpReceiverServer) DeleteScaledObjectRequest(ctx context.Context, request DeleteScaledObjectRequestRequestObject) (DeleteScaledObjectRequestResponseObject, error) {
+	if s.requestManager == nil {
+		return nil, echo.NewHTTPError(stdhttp.StatusNotImplemented, "request manager is not configured")
+	}
+
+	key := types.ScaledObjectKey{
+		Namespace: request.Namespace,
+		Name:      request.Name,
+	}
+
+	deleted, err := s.requestManager.DeleteRequest(key, arbitrator.RequestId(request.RequestId))
+	if err != nil {
+		switch {
+		case errors.Is(err, arbitrator.ErrRequestWindowNotFound),
+			errors.Is(err, arbitrator.ErrScaledObjectNotFound):
+			return nil, echo.NewHTTPError(stdhttp.StatusNotFound, err.Error())
+		default:
+			return nil, echo.NewHTTPError(stdhttp.StatusInternalServerError, err.Error())
+		}
+	}
+
+	return DeleteScaledObjectRequest200JSONResponse{
+		RequestId: string(deleted.RequestID),
+		ScaledObject: ScaledObject{
+			Namespace: deleted.ScaledObject.Namespace,
+			Name:      deleted.ScaledObject.Name,
+		},
+		EffectiveStart: deleted.StartAt,
+		EffectiveEnd:   deleted.EndAt,
 	}, nil
 }
 

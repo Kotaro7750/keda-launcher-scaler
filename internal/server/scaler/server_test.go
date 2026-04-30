@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/arbitrator"
 	"github.com/Kotaro7750/keda-launcher-scaler/internal/server/types"
 )
 
@@ -23,6 +24,21 @@ func (f *fakeArbitratorRouter) Run(context.Context) error {
 
 func (f *fakeArbitratorRouter) IsActive(types.ScaledObjectKey) bool {
 	return false
+}
+
+func (f *fakeArbitratorRouter) EnsureScaledObject(types.ScaledObjectKey) {
+}
+
+func (f *fakeArbitratorRouter) HasScaledObject(types.ScaledObjectKey) bool {
+	return false
+}
+
+func (f *fakeArbitratorRouter) ListScaledObjects() []types.ScaledObjectKey {
+	return nil
+}
+
+func (f *fakeArbitratorRouter) DeleteRequest(types.ScaledObjectKey, arbitrator.RequestId) (arbitrator.RequestWindow, error) {
+	return arbitrator.RequestWindow{}, nil
 }
 
 func TestScalerServerRun_StopsWhenContextCanceled(t *testing.T) {

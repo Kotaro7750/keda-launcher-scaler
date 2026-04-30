@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 	"time"
 
@@ -18,6 +19,10 @@ type ArbitratorRouterIF interface {
 	Subscribe(types.ScaledObjectKey) (<-chan bool, func())
 	Run(context.Context) error
 	IsActive(types.ScaledObjectKey) bool
+	EnsureScaledObject(types.ScaledObjectKey)
+	HasScaledObject(types.ScaledObjectKey) bool
+	ListScaledObjects() []types.ScaledObjectKey
+	DeleteRequest(types.ScaledObjectKey, RequestId) (RequestWindow, error)
 }
 
 type ArbitratorInfo struct {
@@ -25,10 +30,12 @@ type ArbitratorInfo struct {
 	inputCh    chan RequestWindow
 }
 
-func newArbitratorInfo() *ArbitratorInfo {
+var ErrScaledObjectNotFound = errors.New("scaled object not found")
+
+func newArbitratorInfo(logger *slog.Logger) *ArbitratorInfo {
 	inputCh := make(chan RequestWindow)
 	return &ArbitratorInfo{
-		arbitrator: newArbitrator(inputCh),
+		arbitrator: newArbitrator(inputCh, logger),
 		inputCh:    inputCh,
 	}
 }
@@ -97,6 +104,60 @@ func (a *ArbitratorRouter) IsActive(key types.ScaledObjectKey) bool {
 	return arbitrator.arbitrator.checkIfActive(time.Now())
 }
 
+// EnsureScaledObject registers a known ScaledObject key without changing request state.
+func (a *ArbitratorRouter) EnsureScaledObject(key types.ScaledObjectKey) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.ensureArbitratorLocked(key)
+}
+
+// HasScaledObject reports whether the router already knows the ScaledObject key.
+func (a *ArbitratorRouter) HasScaledObject(key types.ScaledObjectKey) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	_, ok := a.arbitrators[key]
+	return ok
+}
+
+// ListScaledObjects returns a snapshot of known ScaledObject keys.
+func (a *ArbitratorRouter) ListScaledObjects() []types.ScaledObjectKey {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	keys := make([]types.ScaledObjectKey, 0, len(a.arbitrators))
+	for key := range a.arbitrators {
+		keys = append(keys, key)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Namespace != keys[j].Namespace {
+			return keys[i].Namespace < keys[j].Namespace
+		}
+		return keys[i].Name < keys[j].Name
+	})
+
+	return keys
+}
+
+// route sends a request window to the ScaledObject-specific arbitrator.
+func (a *ArbitratorRouter) route(ctx context.Context, req RequestWindow) error {
+	a.mu.RLock()
+	arbitratorInfo, ok := a.arbitrators[req.ScaledObject]
+	a.mu.RUnlock()
+	if !ok {
+		return ErrScaledObjectNotFound
+	}
+
+	select {
+	case arbitratorInfo.inputCh <- req:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Subscribe registers for active-state updates for a ScaledObject.
 func (a *ArbitratorRouter) Subscribe(key types.ScaledObjectKey) (<-chan bool, func()) {
 	a.mu.Lock()
@@ -117,7 +178,7 @@ func (a *ArbitratorRouter) Subscribe(key types.ScaledObjectKey) (<-chan bool, fu
 func (a *ArbitratorRouter) ensureArbitratorLocked(key types.ScaledObjectKey) *ArbitratorInfo {
 	arbitrator, ok := a.arbitrators[key]
 	if !ok {
-		arbitrator = newArbitratorInfo()
+		arbitrator = newArbitratorInfo(a.logger)
 		a.arbitrators[key] = arbitrator
 		a.startArbitratorLocked(key, arbitrator)
 	}
@@ -138,18 +199,16 @@ func (a *ArbitratorRouter) startArbitratorLocked(key types.ScaledObjectKey, arbi
 	}()
 }
 
-// route sends a request window to the ScaledObject-specific arbitrator.
-func (a *ArbitratorRouter) route(ctx context.Context, req RequestWindow) error {
-	a.mu.Lock()
-	arbitratorInfo := a.ensureArbitratorLocked(req.ScaledObject)
-	a.mu.Unlock()
-
-	select {
-	case arbitratorInfo.inputCh <- req:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+// DeleteRequest removes a request window from a known ScaledObject.
+func (a *ArbitratorRouter) DeleteRequest(key types.ScaledObjectKey, requestID RequestId) (RequestWindow, error) {
+	a.mu.RLock()
+	arbitratorInfo, ok := a.arbitrators[key]
+	a.mu.RUnlock()
+	if !ok {
+		return RequestWindow{}, ErrScaledObjectNotFound
 	}
+
+	return arbitratorInfo.arbitrator.delete(requestID)
 }
 
 // Shutdown stops the router and all registered arbitrators.

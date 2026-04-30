@@ -10,7 +10,7 @@ require (
 	github.com/kedacore/keda/v2 v2.19.0
 	github.com/labstack/echo/v4 v4.15.1
 	github.com/oapi-codegen/echo-middleware v1.0.2
-	github.com/oapi-codegen/runtime v1.1.2
+	github.com/oapi-codegen/runtime v1.4.0
 	github.com/spf13/viper v1.21.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0

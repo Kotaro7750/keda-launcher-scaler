@@ -2,6 +2,8 @@ package arbitrator
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 )
 
 type RequestId string
+
+var ErrRequestWindowNotFound = errors.New("request window not found")
 
 type RequestWindow struct {
 	RequestID    RequestId
@@ -34,6 +38,7 @@ func (r RequestWindow) shouldActivate(t time.Time) bool {
 type Arbitrator struct {
 	mu             sync.RWMutex
 	nextEventTimer *time.Timer
+	logger         *slog.Logger
 
 	inputCh   <-chan RequestWindow
 	changedCh chan struct{}
@@ -46,12 +51,13 @@ type Arbitrator struct {
 	subscriptions map[uuid.UUID]chan bool
 }
 
-func newArbitrator(in <-chan RequestWindow) *Arbitrator {
+func newArbitrator(in <-chan RequestWindow, logger *slog.Logger) *Arbitrator {
 	changedCh := make(chan struct{}, 1)
 
 	arbitrator := Arbitrator{
 		mu:               sync.RWMutex{},
 		nextEventTimer:   nil,
+		logger:           logger,
 		inputCh:          in,
 		requests:         make(map[RequestId]RequestWindow),
 		subscriptions:    make(map[uuid.UUID]chan bool),
@@ -212,6 +218,14 @@ func (a *Arbitrator) pruneExpiredRequests(t time.Time) {
 	for id, req := range a.requests {
 		if req.alreadyEnded(t) {
 			delete(a.requests, id)
+			a.logger.Info(
+				"Request window pruned",
+				"requestId", string(req.RequestID),
+				"scaledObject.namespace", req.ScaledObject.Namespace,
+				"scaledObject.name", req.ScaledObject.Name,
+				"startAt", req.StartAt,
+				"endAt", req.EndAt,
+			)
 		}
 	}
 }
@@ -248,11 +262,61 @@ func (a *Arbitrator) closeSubscriptionsLocked() {
 
 func (a *Arbitrator) upsert(req RequestWindow) {
 	a.mu.Lock()
+	previous, exists := a.requests[req.RequestID]
 	a.requests[req.RequestID] = req
 	a.mu.Unlock()
+
+	if exists {
+		a.logger.Info(
+			"Request window updated",
+			"requestId", string(req.RequestID),
+			"scaledObject.namespace", req.ScaledObject.Namespace,
+			"scaledObject.name", req.ScaledObject.Name,
+			"previousStartAt", previous.StartAt,
+			"previousEndAt", previous.EndAt,
+			"startAt", req.StartAt,
+			"endAt", req.EndAt,
+		)
+	} else {
+		a.logger.Info(
+			"Request window added",
+			"requestId", string(req.RequestID),
+			"scaledObject.namespace", req.ScaledObject.Namespace,
+			"scaledObject.name", req.ScaledObject.Name,
+			"startAt", req.StartAt,
+			"endAt", req.EndAt,
+		)
+	}
 
 	select {
 	case a.changedCh <- struct{}{}:
 	default:
 	}
+}
+
+func (a *Arbitrator) delete(requestID RequestId) (RequestWindow, error) {
+	a.mu.Lock()
+	req, ok := a.requests[requestID]
+	if !ok {
+		a.mu.Unlock()
+		return RequestWindow{}, ErrRequestWindowNotFound
+	}
+	delete(a.requests, requestID)
+	a.mu.Unlock()
+
+	a.logger.Info(
+		"Request window deleted",
+		"requestId", string(req.RequestID),
+		"scaledObject.namespace", req.ScaledObject.Namespace,
+		"scaledObject.name", req.ScaledObject.Name,
+		"startAt", req.StartAt,
+		"endAt", req.EndAt,
+	)
+
+	select {
+	case a.changedCh <- struct{}{}:
+	default:
+	}
+
+	return req, nil
 }

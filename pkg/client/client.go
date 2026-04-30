@@ -28,7 +28,23 @@ type AcceptedRequest struct {
 	EffectiveEnd   time.Time
 }
 
+// DeleteRequest is the transport-agnostic delete request shape.
+type DeleteRequest struct {
+	RequestID    string
+	ScaledObject ScaledObject
+}
+
+// DeletedRequest is the transport-agnostic delete response shape.
+type DeletedRequest struct {
+	RequestID      string
+	ScaledObject   ScaledObject
+	EffectiveStart time.Time
+	EffectiveEnd   time.Time
+}
+
 // Client sends launch requests using a transport-specific implementation.
 type Client interface {
 	Launch(ctx context.Context, req LaunchRequest) (AcceptedRequest, error)
+	ListScaledObjects(ctx context.Context) ([]ScaledObject, error)
+	DeleteRequest(ctx context.Context, req DeleteRequest) (DeletedRequest, error)
 }

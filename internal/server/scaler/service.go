@@ -28,6 +28,7 @@ func (s *Service) IsActive(ctx context.Context, ref *externalscaler.ScaledObject
 	if err != nil {
 		return nil, err
 	}
+	s.arbitratorRouter.EnsureScaledObject(key)
 	active := s.arbitratorRouter.IsActive(key)
 	return &externalscaler.IsActiveResponse{Result: active}, nil
 }
@@ -37,6 +38,7 @@ func (s *Service) StreamIsActive(ref *externalscaler.ScaledObjectRef, stream ext
 	if err != nil {
 		return err
 	}
+	s.arbitratorRouter.EnsureScaledObject(key)
 
 	updates, cancel := s.arbitratorRouter.Subscribe(key)
 	defer cancel()
@@ -57,9 +59,11 @@ func (s *Service) StreamIsActive(ref *externalscaler.ScaledObjectRef, stream ext
 }
 
 func (s *Service) GetMetricSpec(ctx context.Context, ref *externalscaler.ScaledObjectRef) (*externalscaler.GetMetricSpecResponse, error) {
-	if _, err := scaledObjectKeyFromRef(ref); err != nil {
+	key, err := scaledObjectKeyFromRef(ref)
+	if err != nil {
 		return nil, err
 	}
+	s.arbitratorRouter.EnsureScaledObject(key)
 
 	return &externalscaler.GetMetricSpecResponse{
 		MetricSpecs: []*externalscaler.MetricSpec{
@@ -80,6 +84,7 @@ func (s *Service) GetMetrics(ctx context.Context, request *externalscaler.GetMet
 	if key.Namespace == "" || key.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name and namespace are required")
 	}
+	s.arbitratorRouter.EnsureScaledObject(key)
 
 	value := int64(0)
 	if s.arbitratorRouter.IsActive(key) {
